@@ -1,0 +1,30 @@
+# Local verification overlay for ai-gateway/kubernetes.
+#
+# 只做一件事：让 ai-gateway-api 用本地构建的镜像（ai-gateway-api:entity-scope）。
+#
+# Redis 使用基础栈的单实例（kubernetes/deploy/redis-deploy.yaml），不再引入
+# Envoy + Redis Cluster：Envoy 的 redis_proxy 不支持 EVAL/EVALSHA，而网关的
+# 配额重置调度锁（model/quotacache/lock.go）和 BFE 的配额/限流脚本都依赖
+# 单键 Lua，经 Envoy 会报 `upstream failure`（实测）。
+#
+# Usage (from ai-gateway/):
+#   kubectl apply -k .local-deploy
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ai-gateway-system
+
+resources:
+  - ../kubernetes
+
+patches:
+  - target:
+      kind: Deployment
+      name: ai-gateway-api
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: ai-gateway-api:entity-scope
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
